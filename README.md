@@ -4,7 +4,7 @@
 
 
 ```bash
-wget -O ~/.bashrc_docker -c /data/docker-work/docker-functions
+wget -O ~/.bashrc_docker -c https://raw.githubusercontent.com/hedzr/docker-bash-functions/master/docker-functions
 #cp /data/docker-work/docker-functions ~/.bashrc_docker
 echo "[ -f ~/.bashrc_docker ] && . ~/.bashrc_docker" >> ~/.bashrc; source ~/.bashrc
 ```
@@ -15,17 +15,31 @@ echo "[ -f ~/.bashrc_docker ] && . ~/.bashrc_docker" >> ~/.bashrc; source ~/.bas
 
 运行：
 
-docker-run-daemon
-docker-run-it
+CID=$(docker-run-daemon <tag>)
+docker-run-it <tag>
 
 停止：
 
-docker-stop
-docker-stop-all
+docker-stop <tag>
+docker-stop-all <tag>
 
 从运行列表中移除：
 
-docker-kill-all
-docker-rm-all
-docker-rm
+docker-kill-all <tag>
+docker-rm-all <tag>
+docker-rm <tag>
+
+获得容器ID
+
+echo $(docker-cid <tag>)
+
+获得容器的运行进程ID
+
+echo $(docker-pid <cid>)
+echo $(docker-pid $(docker-cid <tag>))
+
+获得运行时容器的IP
+
+echo $(docker-ip <cid>)
+echo $(docker-ip $(docker-cid <tag>))
 
