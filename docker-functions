@@ -1,0 +1,109 @@
+#!/bin/bash
+#docker-functions
+
+# docker-run-daemon suweia/ubuntu:latest
+function docker-run-daemon() {
+	CID_LONG=$(sudo docker run -d $*  /bin/sh -c "while true; do echo hello world; sleep 1; done")
+	echo $CID_LONG
+}
+
+# docker-run-it suweia/ubuntu:latest
+function docker-run-it() {
+	sudo docker run -it --rm $*
+}
+
+# echo $(docker-cid suweia/ubuntu:latest)
+function docker-cid() {
+	CID=`docker ps | grep -Poi "^[0-9a-f]+[ \t]+$1" | grep -Poi "^[0-9a-f]+"`
+	echo $CID
+}
+
+function docker-install-nsenter() {
+	wget https://www.kernel.org/pub/linux/utils/util-linux/v2.24/util-linux-2.24.tar.gz; tar xzvf util-linux-2.24.tar.gz
+	cd util-linux-2.24
+	./configure --without-ncurses && make nsenter
+	sudo cp nsenter /usr/local/bin
+}
+
+# echo $(docker-pid <container-id>)
+# echo $(docker-pid $(docker-cid suweia/ubuntu:latest))
+alias docker-pid="sudo docker inspect --format '{{.State.Pid}}'"
+alias docker-ip="sudo docker inspect --format '{{ .NetworkSettings.IPAddress }}'"
+
+function docker-stop() {
+	sudo docker stop $(docker-cid $1)
+}
+
+# stop-all: 强制终止容器运行
+function docker-stop-all() {
+	# https://www.mankier.com/1/docker-ps
+	# -f, --filter=[] Provide filter values. Valid filters: exited=<int> - containers with exit code of <int> label=<key> or label=<key>=<value> status=(created|restarting|running|paused|exited) name=<string> - container's name id=<ID> - container's ID
+	# http://subosito.com/docker-tips/
+	sudo docker stop $(docker ps -a -q)
+}
+
+# kill-all 强制终止容器运行，并将其从运行列表中移除
+function docker-kill-all() {
+	sudo docker rm -f $(docker ps -a -q)
+}
+
+# rm-all 安全地终止容器运行，并将其从运行列表中移除
+function docker-rm-all() {
+	docker rm $(docker ps -a -q)
+}
+
+# docker-rm: 终止一个或一组容器，并将其从运行列表中移除
+function docker-rm() {
+	for i in $@; do
+		#echo $i
+		local pid=$(dcpid "$i")
+		[ "$pid" != "" ] && echo "Clear the stopped container: $i, $pid" && docker rm -f $pid
+	done
+}
+
+
+
+#the implementation refs from https://github.com/jpetazzo/nsenter/blob/master/docker-enter
+#
+# docker-enter $(docker-cid suweia/ubuntu)
+function docker-enter() {
+    #if [ -e $(dirname "$0")/nsenter ]; then
+    #Change for centos bash running
+    if [ -e $(dirname '$0')/nsenter ]; then
+        # with boot2docker, nsenter is not in the PATH but it is in the same folder
+        NSENTER=$(dirname "$0")/nsenter
+    else
+        # if nsenter has already been installed with path notified, here will be clarified
+        NSENTER=$(which nsenter)
+        #NSENTER=nsenter
+    fi
+    [ -z "$NSENTER" ] && echo "WARN Cannot find nsenter" && return
+
+    if [ -z "$1" ]; then
+        echo "Usage: `basename "$0"` CONTAINER [COMMAND [ARG]...]"
+        echo ""
+        echo "Enters the Docker CONTAINER and executes the specified COMMAND."
+        echo "If COMMAND is not specified, runs an interactive shell in CONTAINER."
+    else
+        PID=$(sudo docker inspect --format "{{.State.Pid}}" "$1")
+        if [ -z "$PID" ]; then
+            echo "WARN Cannot find the given container"
+            return
+        fi
+        shift
+
+        OPTS="--target $PID --mount --uts --ipc --net --pid"
+
+        if [ -z "$1" ]; then
+            # No command given.
+            # Use su to clear all host environment variables except for TERM,
+            # initialize the environment variables HOME, SHELL, USER, LOGNAME, PATH,
+            # and start a login shell.
+            #sudo $NSENTER "$OPTS" su - root
+            sudo $NSENTER --target $PID --mount --uts --ipc --net --pid su - root
+        else
+            # Use env to clear all host environment variables.
+            sudo $NSENTER --target $PID --mount --uts --ipc --net --pid env -i $@
+        fi
+    fi
+}
